@@ -22,10 +22,8 @@ get_os_type() {
     fi
 }
 
-
 install_packages() {
     local os_type=$(get_os_type)
-    
     case $os_type in
         "ubuntu"|"debian")
             sudo apt update
@@ -46,7 +44,6 @@ install_packages() {
 update_plugins() {
     local plugins_to_add=("zsh-autosuggestions" "zsh-syntax-highlighting" "fast-syntax-highlighting" "zsh-autocomplete")
     local zshrc="$HOME/.zshrc"
-    
     local current_plugins=$(grep "^plugins=" "$zshrc")
     
     if [ -z "$current_plugins" ]; then
@@ -58,7 +55,6 @@ update_plugins() {
                 existing_plugins="$existing_plugins $plugin"
             fi
         done
-        
         sed -i "s/^plugins=(.*)/plugins=($existing_plugins)/" "$zshrc"
     fi
 }
