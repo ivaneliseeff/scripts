@@ -26,12 +26,9 @@ install_packages() {
     local os_type=$(get_os_type)
     case $os_type in
         "ubuntu"|"debian")
-            sudo apt update
             sudo apt install -y "$@"
             ;;
         "rhel"|"centos"|"rocky")
-            sudo dnf update -y
-            sudo dnf install -y epel-release
             sudo dnf install -y "$@"
             ;;
         *)
@@ -127,7 +124,7 @@ fi
 echo "Установка завершена успешно!"
 echo "Чтобы заработало, перезагрузите уже свой терминал :)"
 
-read -p "Хотите прямо сейчас начать трогать прекрасный терминал? (y/n) " -n 1 -r
+read -p "Хотите прямо сейчас попасть в матрицу? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     exec zsh -l
