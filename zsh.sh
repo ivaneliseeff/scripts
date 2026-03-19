@@ -73,6 +73,7 @@ declare -A PLUGINS=(
     ["zsh-autosuggestions"]="https://github.com/zsh-users/zsh-autosuggestions.git"
     ["fast-syntax-highlighting"]="https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
     ["zsh-autocomplete"]="https://github.com/marlonrichert/zsh-autocomplete.git"
+    ["zsh-hist"]="https://github.com/marlonrichert/zsh-hist.git"
 )
 
 for name in "${!PLUGINS[@]}"; do
@@ -94,7 +95,7 @@ ZSHRC="$HOME/.zshrc"
 
 cp "$ZSHRC" "$ZSHRC.backup"
 
-PLUGIN_LIST="git zsh-autosuggestions fast-syntax-highlighting zsh-autocomplete"
+PLUGIN_LIST="git docker zsh-autosuggestions fast-syntax-highlighting zsh-autocomplete zsh-hist"
 
 python3 - "$ZSHRC" "$PLUGIN_LIST" <<'EOF'
 import sys, re
