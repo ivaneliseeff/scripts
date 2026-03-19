@@ -1,131 +1,108 @@
 #!/bin/bash
+set -euo pipefail
 
-check_success() {
-    if [ $? -ne 0 ]; then
-        echo "Ошибка: $1"
-        exit 1
-    fi
+# ─── helpers ────────────────────────────────────────────────────────────────
+
+die() { echo "❌ $1"; exit 1; }
+
+get_os() {
+    [ -f /etc/os-release ] && { . /etc/os-release; echo "$ID"; return; }
+    [ -f /etc/redhat-release ] && echo "rhel" || echo "unknown"
 }
 
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-get_os_type() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        echo "$ID"
-    elif [ -f /etc/redhat-release ]; then
-        echo "rhel"
-    else
-        echo "unknown"
-    fi
-}
-
-install_packages() {
-    local os_type=$(get_os_type)
-    case $os_type in
-        "ubuntu"|"debian")
-            sudo apt install -y "$@"
-            ;;
-        "rhel"|"centos"|"rocky")
-            sudo dnf install -y "$@"
-            ;;
-        *)
-            echo "Неподдерживаемая операционная система"
-            exit 1
-            ;;
+pkg_install() {
+    case $(get_os) in
+        ubuntu|debian)          sudo apt-get install -y "$@" ;;
+        rhel|centos|rocky)      sudo dnf install -y "$@" ;;
+        *)                      die "Неподдерживаемая ОС" ;;
     esac
 }
 
-update_plugins() {
-    local plugins_to_add=("zsh-autosuggestions" "zsh-syntax-highlighting" "fast-syntax-highlighting" "zsh-autocomplete")
-    local zshrc="$HOME/.zshrc"
-    local current_plugins=$(grep "^plugins=" "$zshrc")
-    
-    if [ -z "$current_plugins" ]; then
-        echo "plugins=(git ${plugins_to_add[*]})" >> "$zshrc"
-    else
-        local existing_plugins=$(echo "$current_plugins" | sed 's/plugins=(//' | sed 's/)//')
-        for plugin in "${plugins_to_add[@]}"; do
-            if [[ ! $existing_plugins =~ $plugin ]]; then
-                existing_plugins="$existing_plugins $plugin"
-            fi
-        done
-        sed -i "s/^plugins=(.*)/plugins=($existing_plugins)/" "$zshrc"
-    fi
-}
+# ─── зависимости ────────────────────────────────────────────────────────────
 
-echo "Запуск установки omz + plugins..."
+echo "📦 Устанавливаем зависимости..."
 
-os_type=$(get_os_type)
-case $os_type in
-    "ubuntu"|"debian")
-        packages="curl git zsh zsh-autosuggestions zsh-syntax-highlighting"
-        ;;
-    "rhel"|"centos"|"rocky")
-        packages="curl git zsh util-linux-user"
-        ;;
-    *)
-        echo "Неподдерживаемая операционная система"
-        exit 1
-        ;;
+case $(get_os) in
+    ubuntu|debian)      pkg_install curl git zsh ;;
+    rhel|centos|rocky)  pkg_install curl git zsh util-linux-user ;;
+    *)                  die "Неподдерживаемая ОС" ;;
 esac
 
-echo "Запуск системы самоуничтожения"
-install_packages $packages
-check_success "Не удалось самоуничтожиться"
+# ─── oh-my-zsh ──────────────────────────────────────────────────────────────
 
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
-    echo "Установка omz..."
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-    check_success "Не удалось установить omz :("
+    echo "🔧 Устанавливаем oh-my-zsh..."
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \
+        || die "Не удалось установить oh-my-zsh"
 else
-    echo "omz уже стоит!"
+    echo "✅ oh-my-zsh уже установлен"
 fi
+
+# ─── плагины ────────────────────────────────────────────────────────────────
 
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
-declare -A plugins=(
+declare -A PLUGINS=(
     ["zsh-autosuggestions"]="https://github.com/zsh-users/zsh-autosuggestions.git"
-    ["zsh-syntax-highlighting"]="https://github.com/zsh-users/zsh-syntax-highlighting.git"
     ["fast-syntax-highlighting"]="https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
     ["zsh-autocomplete"]="https://github.com/marlonrichert/zsh-autocomplete.git"
 )
 
-for plugin in "${!plugins[@]}"; do
-    if [ ! -d "$ZSH_CUSTOM/plugins/$plugin" ]; then
-        echo "Устанавливаем плагин $plugin..."
-        git clone --depth 1 "${plugins[$plugin]}" "$ZSH_CUSTOM/plugins/$plugin"
-        check_success "Не удалось установить плагин $plugin"
+for name in "${!PLUGINS[@]}"; do
+    target="$ZSH_CUSTOM/plugins/$name"
+    if [ ! -d "$target" ]; then
+        echo "🔌 Устанавливаем плагин $name..."
+        git clone --depth 1 "${PLUGINS[$name]}" "$target" \
+            || die "Не удалось установить плагин $name"
     else
-        echo "Плагин $plugin уже установлен"
+        echo "✅ Плагин $name уже установлен"
     fi
 done
 
-echo "rm -rf / *"
+# ─── .zshrc ─────────────────────────────────────────────────────────────────
+
 ZSHRC="$HOME/.zshrc"
-if [ -f "$ZSHRC" ]; then
-    cp "$ZSHRC" "$ZSHRC.backup"
-    check_success "Не удалось кикнуть весь сервер"
-    update_plugins
-    check_success "Не удалось обновить plugins в .zshrc"
-else
-    echo "Ошибка: файл .zshrc не найден"
-    exit 1
+[ -f "$ZSHRC" ] || die ".zshrc не найден"
+
+cp "$ZSHRC" "$ZSHRC.backup"
+echo "💾 Бэкап сохранён в $ZSHRC.backup"
+
+PLUGIN_LIST="git zsh-autosuggestions fast-syntax-highlighting zsh-autocomplete"
+
+# Заменяем строку plugins=(...) независимо от того, в одну строку она или нет
+python3 - "$ZSHRC" "$PLUGIN_LIST" <<'EOF'
+import sys, re
+
+path = sys.argv[1]
+plugin_list = sys.argv[2]
+
+with open(path, "r") as f:
+    content = f.read()
+
+# Матчим plugins=(...) включая многострочный вариант
+new = re.sub(r'plugins=\([^)]*\)', f'plugins=({plugin_list})', content, flags=re.DOTALL)
+
+with open(path, "w") as f:
+    f.write(new)
+
+print("✅ plugins в .zshrc обновлены")
+EOF
+
+# ─── дефолтная оболочка ─────────────────────────────────────────────────────
+
+ZSH_PATH="$(which zsh)"
+
+if [ "$SHELL" != "$ZSH_PATH" ]; then
+    echo "🐚 Устанавливаем zsh как оболочку по умолчанию..."
+    chsh -s "$ZSH_PATH" || die "Не удалось сменить оболочку"
 fi
 
-if [ "$SHELL" != "$(which zsh)" ]; then
-    echo "Ставлю zsh как оболочку по умолчанию..."
-    chsh -s $(which zsh)
-    check_success "Не удалось установить zsh как оболочку по умолчанию"
-fi
+# ─── готово ─────────────────────────────────────────────────────────────────
 
-echo "Установка завершена успешно!"
-echo "Чтобы заработало, перезагрузите уже свой терминал :)"
+echo ""
+echo "✅ Готово! Перезапусти терминал или:"
+echo ""
 
-read -p "Хотите прямо сейчас попасть в матрицу? (y/n) " -n 1 -r
+read -r -p "   Войти в zsh прямо сейчас? (y/n) " -n 1
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    exec zsh -l
-fi
+[[ $REPLY =~ ^[Yy]$ ]] && exec zsh -l
