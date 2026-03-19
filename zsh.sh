@@ -112,7 +112,7 @@ echo "  ✅ plugins обновлены"
 
 ZSH_PATH="$(which zsh)"
 if [ "$SHELL" != "$ZSH_PATH" ]; then
-    run_silent "Смена оболочки на zsh" chsh -s "$ZSH_PATH"
+    run_silent "Смена оболочки на zsh" sudo chsh -s "$ZSH_PATH" "$USER"
 fi
 
 # ─── готово ─────────────────────────────────────────────────────────────────
